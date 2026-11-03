@@ -11,6 +11,10 @@ cleanup() {
   docker volume rm "$volume" >/dev/null
 }
 trap cleanup EXIT
+timeout 90 docker run --rm --name "$container" --network none \
+  --mount "type=bind,src=$(pwd)/tests,dst=/test,readonly" \
+  --entrypoint python3 "$image_id" /test/wayland_socket.py \
+  2>&1 | tee artifacts/runtime-wayland-socket.log
 # Inspect the actual exported image before init, with no permissive HOME fixture.
 # Any inherited root-owned profile scaffold must be removed at BUILD time only.
 timeout 30 docker run --rm --name "$container" --network none --entrypoint python3 \

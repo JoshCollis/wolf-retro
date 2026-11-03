@@ -73,7 +73,7 @@ RUN ln -s /usr/lib64/libretro/mgba_libretro.so /opt/retro-library/cores/mgba_lib
     chmod 0755 /usr/local/bin/{retro-launch,library-help,dolphin-input} \
       /opt/emulators/dolphin/squashfs-root/AppRun \
       /opt/emulators/pcsx2/squashfs-root/AppRun \
-      /etc/cont-init.d/{10-setup_user.sh,setup-de.sh} /opt/gow/startup-app.sh && \
+      /etc/cont-init.d/{05-retro-runtime.sh,10-setup_user.sh,setup-de.sh} /opt/gow/startup-app.sh && \
     rm -f /home/retro/.local/share/wget/.wget-hsts && \
     rmdir /home/retro/.local/share/wget /home/retro/.local/share /home/retro/.local && \
     rm -f /etc/cont-init.d/init-gamescope.sh && \

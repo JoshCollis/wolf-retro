@@ -34,6 +34,16 @@ Wolf provides Wayland/audio sockets and GPU/input devices. Keep `RUN_SWAY=1` and
 **leave `RUN_GAMESCOPE` unset** (upstream treats even `false` as enabled). The
 minimal fullscreen Sway config and GoW frontend startup are retained.
 
+Before dropping privileges, `05-retro-runtime.sh` resolves the exact injected
+parent Wayland socket (absolute `WAYLAND_DISPLAY`, or relative to the existing
+`XDG_RUNTIME_DIR`). A configured display must be a real socket or startup fails
+closed. Only that socket is chowned to numeric `PUID:PGID`, allowing nonroot Sway
+to connect when Wolf supplies a root-owned mode-0755 listener. Its mode, sibling
+sockets and directories are not changed by this hook; there is no recursive
+socket-tree/HOME ownership change or daemon umask workaround. Both display
+environment variables remain unchanged for GoW's Sway helper. Without
+`WAYLAND_DISPLAY`, the hook is a no-op for standalone software tests.
+
 Dolphin runs through native Fedora Qt/Xwayland with the same explicit `--user`
 directory, Vulkan renderer and renderer-leaf focus retry. The managed
 `GCPadNew.ini`/`Hotkeys.ini` are regenerated per Dolphin launch: keyboard plus the

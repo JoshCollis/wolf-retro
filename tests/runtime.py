@@ -161,7 +161,7 @@ def gui_inner():
         (['/opt/emulators/esde/squashfs-root/AppRun', '--version'], None),
         (['/opt/emulators/dolphin/squashfs-root/AppRun', '--version'], None),
         (['/opt/gow/startup-app.sh'], 'ES-DE|EmulationStation'),
-        (['retroarch', '--menu', '--config', str(retro_config)], 'RetroArch'),
+        (['retroarch', '--verbose', '--menu', '--config', str(retro_config)], 'RetroArch'),
         (['/opt/emulators/dolphin/squashfs-root/AppRun', '--user', str(HOME / '.test-dolphin')], 'Dolphin'),
         (['/opt/emulators/pcsx2/squashfs-root/AppRun', '-help'], None),
     ]

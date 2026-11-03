@@ -78,6 +78,18 @@ class LauncherTests(unittest.TestCase):
 
 
 class PolicyTests(unittest.TestCase):
+    def test_parent_wayland_hook_is_packaged_and_required(self):
+        hook = 'overlay/etc/cont-init.d/05-retro-runtime.sh'
+        for name in ['.dockerignore', '.gitignore']:
+            self.assertIn(hook, (ROOT / name).read_text())
+        self.assertIn('05-retro-runtime.sh', (ROOT / 'Dockerfile').read_text())
+        self.assertIn('/test/wayland_socket.py', (ROOT / 'tests/image.sh').read_text())
+        text = (ROOT / hook).read_text()
+        self.assertIn('[[ ! -S $WOLF_RETRO_PARENT_WAYLAND ]]', text)
+        self.assertEqual(text.count('chown --'), 1)
+        self.assertNotIn('export XDG_RUNTIME_DIR', text)
+        self.assertNotIn('export WAYLAND_DISPLAY', text)
+
     def test_support_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'os-release'
