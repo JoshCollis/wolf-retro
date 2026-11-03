@@ -1,0 +1,35 @@
+# Separate test app; replace generic host paths and review generated mounts.
+# Persist the EXISTING provisioned home unchanged when intentionally migrating.
+[[apps]]
+title = "Retro Library"
+start_virtual_compositor = true
+
+[apps.runner]
+type = "docker"
+name = "WolfRetro"
+image = "ghcr.io/joshcollis/wolf-retro:latest"
+mounts = [
+  "/absolute/path/to/provisioned-retro-home:/home/retro:rw",
+  "/absolute/path/to/roms:/ROMs:ro",
+  "/absolute/path/to/bios:/BIOS:ro",
+  "/absolute/path/to/library:/Library:ro",
+]
+devices = []
+ports = []
+env = [
+  "PUID=1000", "PGID=1000", "UNAME=retro", "HOME=/home/retro",
+  "TZ=UTC", "UMASK=022", "RUN_SWAY=1",
+  "PULSE_SERVER=unix:/run/user/wolf/pulse-socket",
+  "GOW_REQUIRED_DEVICES=/dev/input/* /dev/dri/* /dev/uinput",
+]
+# Leave RUN_GAMESCOPE unset: the upstream launcher treats any nonempty value
+# (including "false") as enabled. Wolf supplies Wayland/Pulse/input/GPU mounts.
+base_create_json = '''
+{
+  "HostConfig": {
+    "Privileged": false,
+    "ShmSize": 1073741824,
+    "DeviceCgroupRules": ["c 13:* rmw"]
+  }
+}
+'''

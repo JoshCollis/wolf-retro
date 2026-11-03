@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+"""Generate the managed combined Dolphin keyboard/streamed-gamepad preset."""
+import ctypes
+import ctypes.util
+import json
+import pathlib
+
+PAIRS = {
+    'Buttons/A': ('X', 'Button A'), 'Buttons/B': ('Z', 'Button B'),
+    'Buttons/X': ('A', 'Button X'), 'Buttons/Y': ('S', 'Button Y'),
+    'Buttons/Z': ('E', 'Shoulder R'), 'Buttons/Start': ('Return', 'Start'),
+    'Main Stick/Up': ('Up', 'Left Y+'), 'Main Stick/Down': ('Down', 'Left Y-'),
+    'Main Stick/Left': ('Left', 'Left X-'), 'Main Stick/Right': ('Right', 'Left X+'),
+    'C-Stick/Up': ('I', 'Right Y+'), 'C-Stick/Down': ('K', 'Right Y-'),
+    'C-Stick/Left': ('J', 'Right X-'), 'C-Stick/Right': ('L', 'Right X+'),
+    'Triggers/L': ('Q', 'Trigger L'), 'Triggers/R': ('W', 'Trigger R'),
+    'Triggers/L-Analog': ('Q', 'Trigger L'), 'Triggers/R-Analog': ('W', 'Trigger R'),
+    'D-Pad/Up': ('T', 'Pad N'), 'D-Pad/Down': ('G', 'Pad S'),
+    'D-Pad/Left': ('F', 'Pad W'), 'D-Pad/Right': ('H', 'Pad E')}
+
+
+def gamepad_name():
+    lib = None
+    try:
+        lib = ctypes.CDLL(ctypes.util.find_library('SDL2-2.0') or 'libSDL2-2.0.so.0')
+        if lib.SDL_InitSubSystem(0x2200) != 0:
+            return None
+        lib.SDL_GameControllerNameForIndex.restype = ctypes.c_char_p
+        for index in range(lib.SDL_NumJoysticks()):
+            if lib.SDL_IsGameController(index):
+                name = lib.SDL_GameControllerNameForIndex(index)
+                if name:
+                    return name.decode()
+    except (OSError, UnicodeError):
+        return None
+    finally:
+        if lib is not None:
+            lib.SDL_QuitSubSystem(0x2200)
+    return None
+
+
+def render(name):
+    pad = 'SDL/0/' + name if name else None
+    lines = ['[GCPad1]', 'Device = XInput2/0/Virtual core pointer']
+    for key, (keyboard, button) in PAIRS.items():
+        expression = '`' + keyboard + '`'
+        if pad:
+            expression += ' | `' + pad + ':' + button + '`'
+        lines.append(key + ' = ' + expression)
+    lines += ['Main Stick/Calibration = 100.00', 'C-Stick/Calibration = 100.00']
+    stop = '`Escape`'
+    if pad:
+        stop += ' | (`' + pad + ':Back` & `' + pad + ':Start`)'
+    hotkeys = '[Hotkeys]\nDevice = XInput2/0/Virtual core pointer\nGeneral/Stop = ' + stop + '\n'
+    return '\n'.join(lines) + '\n', hotkeys
+
+
+def main():
+    base = pathlib.Path.home() / '.local/share/dolphin-emu/Config'
+    base.mkdir(parents=True, exist_ok=True)
+    name = gamepad_name()
+    gamepad, hotkeys = render(name)
+    (base / 'GCPadNew.ini').write_text(gamepad)
+    (base / 'Hotkeys.ini').write_text(hotkeys)
+    print(json.dumps({'keyboard': 'XInput2/0/Virtual core pointer', 'streamed_gamepad': name}))
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,30 @@
+[
+  {
+    "name": "genesis_plus_gx",
+    "url": "https://codeload.github.com/libretro/Genesis-Plus-GX/tar.gz/f27655b592ef43f317272d79883bcaa10d3ac8ad",
+    "sha256": "4720dce8f219994951fe5d021e433f3b107ad7c3c64b6295a6a12928f31a73ea",
+    "directory": ".",
+    "makefile": "Makefile.libretro"
+  },
+  {
+    "name": "fceumm",
+    "url": "https://codeload.github.com/libretro/libretro-fceumm/tar.gz/e0f3086a8104f8fbbe49a2615b10401504a9533f",
+    "sha256": "7a81aa960e0424f736ceaf3221b93663f7ae0b0a68483ac17f8eb0c4afff28f7",
+    "directory": ".",
+    "makefile": "Makefile.libretro"
+  },
+  {
+    "name": "snes9x",
+    "url": "https://codeload.github.com/libretro/snes9x/tar.gz/fae2fea08f74180759ef540ee94259213f503480",
+    "sha256": "0d4b0c4181d66668ec0040eb17f90a559f7b7fa6cbd9198593c3bdbe79acd029",
+    "directory": "libretro",
+    "makefile": "Makefile"
+  },
+  {
+    "name": "mupen64plus_next",
+    "url": "https://codeload.github.com/libretro/mupen64plus-libretro-nx/tar.gz/15bada85906593376e8fd697f1b0b3af3a20f512",
+    "sha256": "0b739581f2610fa6967891a657c749557fa4f7555d6a7e2e3475c9b397302b13",
+    "directory": ".",
+    "makefile": "Makefile"
+  }
+]

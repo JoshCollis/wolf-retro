@@ -1,0 +1,7 @@
+#!/bin/bash
+set -e
+export GSK_RENDERER=cairo
+if [[ ! -r /Library/README.txt ]]; then
+  exec zenity --info --title="Retro Library" --text="Mount your library instructions at /Library/README.txt. Games and BIOS are not included."
+fi
+exec zenity --text-info --title="Retro Games — controls and adding games" --filename=/Library/README.txt --width=900 --height=650

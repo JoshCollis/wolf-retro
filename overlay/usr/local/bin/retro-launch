@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""Focused library launcher; existing persistent emulator settings own saves."""
+import json
+import os
+import pathlib
+import subprocess
+import sys
+import time
+
+CORES = {'megadrive': 'genesis_plus_gx', 'nes': 'fceumm', 'snes': 'snes9x',
+         'gba': 'mgba', 'n64': 'mupen64plus_next'}
+
+
+def window_nodes(node):
+    if node.get('type') == 'con' and (node.get('window') or node.get('app_id')):
+        yield node
+    for child in node.get('nodes', []) + node.get('floating_nodes', []):
+        yield from window_nodes(child)
+
+
+def focus_game_window(pid, system):
+    """Target the emulator leaf, not Sway's fullscreen parent workspace."""
+    tree = json.loads(subprocess.check_output(['swaymsg', '-t', 'get_tree'], text=True))
+    matches = [node for node in window_nodes(tree) if node.get('pid') == pid]
+    if system == 'gc':
+        matches = [node for node in matches if
+                   node.get('window_properties', {}).get('window_role') == 'renderer']
+    if not matches:
+        return False
+    node = matches[-1]
+    if node.get('fullscreen_mode') != 1 or not node.get('focused'):
+        result = json.loads(subprocess.check_output([
+            'swaymsg', f"[con_id={node['id']}] fullscreen enable; [con_id={node['id']}] focus"
+        ], text=True))
+        if not all(item.get('success') for item in result):
+            return False
+    return True
+
+
+def message(title, text):
+    subprocess.run(['zenity', '--info', '--title', title, '--text', text, '--width=650'], check=False)
+
+
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    if len(argv) != 2:
+        return 2
+    system, rom = argv
+    path = pathlib.Path(rom)
+    if not path.is_file():
+        message('Game file missing', 'This game file is not present. Add your game files to the shared Retro Library first.')
+        return 2
+    if system in CORES:
+        cmd = ['retroarch', '--fullscreen', '--config',
+               str(pathlib.Path.home() / '.config/retroarch/retroarch.cfg'),
+               '-L', '/opt/retro-library/cores/' + CORES[system] + '_libretro.so', str(path)]
+    elif system == 'gc':
+        subprocess.run(['/usr/local/bin/dolphin-input'], check=True)
+        cmd = ['/opt/emulators/dolphin/squashfs-root/AppRun', '--user',
+               str(pathlib.Path.home() / '.local/share/dolphin-emu'), '--batch',
+               '--video_backend', 'Vulkan', '--exec', str(path)]
+    elif system == 'ps2':
+        bios = [item for item in pathlib.Path('/BIOS/ps2').glob('*') if
+                item.is_file() and item.suffix.lower() in ['.bin', '.rom']]
+        if not bios:
+            message('PS2 BIOS needed', 'PCSX2 is configured, but no PlayStation 2 BIOS has been supplied. Put your own dumped BIOS files in Retro Library/bios/ps2. Games and BIOS files are not included.')
+            return 2
+        cmd = ['/opt/emulators/pcsx2/squashfs-root/AppRun', '-batch', '-fullscreen', str(path)]
+    else:
+        message('Unsupported system', 'This system is not configured in the focused library.')
+        return 2
+    env = os.environ.copy()
+    env['QT_QPA_PLATFORM'] = 'xcb'
+    if system != 'gc':
+        return subprocess.call(cmd, env=env)
+    process = subprocess.Popen(cmd, env=env)
+    # Qt may clear initial fullscreen when mapping the renderer. Never relaunch.
+    for attempt in range(24):
+        if process.poll() is not None:
+            break
+        try:
+            focus_game_window(process.pid, system)
+        except (subprocess.SubprocessError, ValueError, OSError) as error:
+            if attempt == 23:
+                print('Game window focus check failed:', type(error).__name__, file=sys.stderr)
+        time.sleep(0.25)
+    result = process.wait()
+    subprocess.run(['swaymsg', '[class="^es-de$"] fullscreen enable; [class="^es-de$"] focus'],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    return result
+
+
+if __name__ == '__main__':
+    sys.exit(main())

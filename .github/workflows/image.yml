@@ -1,0 +1,137 @@
+name: Build, test and publish image
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '23 6 * * 1'
+permissions:
+  contents: read
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      image: ${{ steps.base.outputs.image_name }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+      - name: Lint and unit tests
+        run: |
+          bash tests/lint.sh
+          python3 -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Resolve official supported base to immutable digest
+        id: base
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          base=$(bash build/resolve-base.sh)
+          echo "BASE_IMAGE=$base" >> "$GITHUB_ENV"
+          echo "BASE_DIGEST=${base#*@}" >> "$GITHUB_ENV"
+          echo "image_name=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - name: Check build and exact-image export disk budget
+        run: |
+          set -euo pipefail
+          base_bytes=$(docker image inspect "$BASE_IMAGE" --format '{{.Size}}')
+          # Shared base + compiler/runtime deltas + BuildKit blobs + gzip export.
+          # The reviewed base is about 2.56 GB; reserve five bases plus 6 GiB.
+          required=$((base_bytes * 5 + 6 * 1024 * 1024 * 1024))
+          docker_root=$(docker info --format '{{.DockerRootDir}}')
+          available() { df -PB1 "$docker_root" . | awk 'NR>1 {print $4}' | sort -n | head -1; }
+          before=$(available)
+          if (( before < required )) && [[ "$RUNNER_ENVIRONMENT" == github-hosted && "$GITHUB_ACTIONS" == true ]]; then
+            # Only known SDK caches on this disposable hosted runner, only if needed.
+            sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          fi
+          after=$(available)
+          printf 'Disk budget (bytes): base=%s required=%s before=%s after=%s\n' \
+            "$base_bytes" "$required" "$before" "$after" | tee -a "$GITHUB_STEP_SUMMARY"
+          (( after >= required )) || { echo 'Insufficient build/export disk budget' >&2; exit 1; }
+      - name: Build candidate runtime with fresh distribution dependencies
+        env:
+          SOURCE: https://github.com/${{ github.repository }}
+          REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          docker buildx build --pull --load --platform linux/amd64 \
+            --no-cache-filter core-builder,runtime-deps,runtime --target runtime \
+            --build-arg BASE_IMAGE="$BASE_IMAGE" --build-arg BASE_DIGEST="$BASE_DIGEST" \
+            --build-arg IMAGE_SOURCE="$SOURCE" --build-arg IMAGE_REVISION="$REVISION" \
+            -t wolf-retro:local-review .
+      - name: Record exact candidate and provenance
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          docker image inspect wolf-retro:local-review --format '{{.Id}}' > artifacts/tested-image.id
+          docker image inspect wolf-retro:local-review --format '{{json .Config.Labels}}' > artifacts/runtime-labels.json
+          docker run --rm --network none --entrypoint tar wolf-retro:local-review \
+            -C /usr/share/wolf-retro -cf - . | tar -xf - -C artifacts
+          docker run --rm --network none --entrypoint cat wolf-retro:local-review \
+            /opt/retro-library/sources.json > artifacts/cores.json
+      - name: Exact runtime contract, recreation and software frontend acceptance
+        run: bash tests/image.sh wolf-retro:local-review
+      - name: Retain acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: acceptance-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Export exact tested runtime
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          docker save wolf-retro:local-review | gzip > tested-image.tar.gz
+          cp artifacts/tested-image.id .
+          sha256sum tested-image.tar.gz > tested-image.tar.gz.sha256
+      - name: Retain runtime for least-privilege publisher
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: tested-image
+          path: |
+            tested-image.tar.gz
+            tested-image.tar.gz.sha256
+            tested-image.id
+          compression-level: 0
+          retention-days: 1
+  publish:
+    needs: image
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: tested-image
+      - name: Verify and load exact tested runtime without rebuilding
+        run: |
+          set -euo pipefail
+          sha256sum -c tested-image.tar.gz.sha256
+          docker load --input tested-image.tar.gz
+          test "$(docker image inspect wolf-retro:local-review --format '{{.Id}}')" = "$(cat tested-image.id)"
+      - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish tested latest and immutable run/SHA identities
+        env:
+          IMAGE: ${{ needs.image.outputs.image }}
+        run: |
+          set -euo pipefail
+          for tag in "run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "sha-$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" latest; do
+            docker tag wolf-retro:local-review "$IMAGE:$tag"
+            docker push "$IMAGE:$tag"
+          done

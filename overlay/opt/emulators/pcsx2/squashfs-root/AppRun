@@ -1,0 +1,6 @@
+#!/bin/bash
+set -euo pipefail
+root=/opt/emulators/pcsx2/squashfs-root
+export LD_LIBRARY_PATH="$root/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export QT_PLUGIN_PATH="$root/usr/plugins"
+exec "$root/usr/bin/pcsx2-qt" "$@"
