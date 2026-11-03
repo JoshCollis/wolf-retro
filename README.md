@@ -72,8 +72,9 @@ Evidence inside `/usr/share/wolf-retro/` records the base reference, OS, AppImag
 hashes and installed RPM versions/licences. `/opt/retro-library/sources.json`
 records built cores. CI retains these, actual version output and runtime logs.
 Before building, CI checks free space for compiler/runtime layers, BuildKit blobs
-and exact-image export (five times base size plus 6 GiB; about 19 GB for the
-reviewed 2.56 GB base). Only if below budget may the disposable GitHub-hosted
+and exact-image export (five times uncompressed Docker image size plus 6 GiB;
+26.51 GB for the reviewed 4.01 GB base, not its smaller registry transfer size).
+Only if below budget may the disposable GitHub-hosted
 runner remove its unused Android/.NET/GHC SDK caches; local hosts are never
 cleaned. Insufficient space still fails before the build.
 

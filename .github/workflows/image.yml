@@ -41,7 +41,7 @@ jobs:
           set -euo pipefail
           base_bytes=$(docker image inspect "$BASE_IMAGE" --format '{{.Size}}')
           # Shared base + compiler/runtime deltas + BuildKit blobs + gzip export.
-          # The reviewed base is about 2.56 GB; reserve five bases plus 6 GiB.
+          # Use uncompressed Docker Size, not registry transfer size (~2.56 GB).
           required=$((base_bytes * 5 + 6 * 1024 * 1024 * 1024))
           docker_root=$(docker info --format '{{.DockerRootDir}}')
           available() { df -PB1 "$docker_root" . | awk 'NR>1 {print $4}' | sort -n | head -1; }

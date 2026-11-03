@@ -11,6 +11,11 @@ cleanup() {
   docker volume rm "$volume" >/dev/null
 }
 trap cleanup EXIT
+# Inspect the actual exported image before init, with no permissive HOME fixture.
+# Any inherited root-owned profile scaffold must be removed at BUILD time only.
+timeout 30 docker run --rm --name "$container" --network none --entrypoint python3 \
+  "$image_id" -c 'from pathlib import Path; p=Path("/home/retro"); assert not list(p.iterdir()), list(p.iterdir()); print("PASS image-baked HOME is empty before init")' \
+  2>&1 | tee artifacts/runtime-baked-home.log
 # Expand UNAME only inside the container.
 # shellcheck disable=SC2016
 timeout 30 docker run --rm --name "$container" --network none \

@@ -27,10 +27,12 @@ FIXTURES = {
 
 def run(*args, **kwargs):
     timeout = kwargs.pop('timeout', 30)
+    expected_returncode = kwargs.pop('expected_returncode', 0)
     result = subprocess.run(args, text=True, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, timeout=timeout, **kwargs)
     print('$', ' '.join(args), '\n', result.stdout, flush=True)
-    result.check_returncode()
+    assert result.returncode == expected_returncode, (
+        args, result.returncode, 'expected', expected_returncode)
     return result.stdout
 
 
@@ -41,11 +43,14 @@ def identity():
     assert user.pw_name == os.environ['UNAME']
     assert user.pw_dir == str(HOME)
     assert HOME.stat().st_uid == os.getuid()
-    for relative in ['.config/retroarch', '.config/PCSX2/inis',
-                     '.local/share/dolphin-emu/Config', 'ES-DE/settings',
+    for relative in ['.config', '.config/retroarch', '.config/PCSX2/inis',
+                     '.local', '.local/share', '.local/share/dolphin-emu/Config', 'ES-DE/settings',
                      'Saves/retroarch', 'States/retroarch']:
-        assert os.access(HOME / relative, os.W_OK), relative
-    print('PASS nonroot identity/passwd and writable provisioned directories', flush=True)
+        directory = HOME / relative
+        assert os.access(directory, os.W_OK), relative
+        assert directory.stat().st_uid == os.getuid(), relative
+        assert directory.stat().st_gid == os.getgid(), relative
+    print('PASS nonroot identity/passwd; HOME directories are UID/GID-owned and writable', flush=True)
 
 
 def fingerprint(path):
@@ -162,8 +167,14 @@ def gui_inner():
     ]
     for command, pattern in commands:
         if pattern is None:
-            output = run(*command, env=env)
+            # PCSX2 2.8.2 QtHost.cpp returns false from help/version parsing,
+            # which main translates to exit 1. Require that exact CLI contract;
+            # real mapped PCSX2 GUI acceptance below is still mandatory.
+            expected = 1 if command[-1] == '-help' else 0
+            output = run(*command, env=env, expected_returncode=expected)
             assert any(name in output for name in ['ES-DE', 'EmulationStation', 'Dolphin', 'PCSX2'])
+            if command[-1] == '-help':
+                assert '-batch:' in output and '-fullscreen:' in output
             continue
         log = HOME / ('.test-' + pattern.replace('|', '-') + '.log')
         with log.open('w') as stream:

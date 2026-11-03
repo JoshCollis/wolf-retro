@@ -17,7 +17,9 @@ wolf-plasma repositories. This does **not** relicense the image's dependencies.
   The official GoW base's unmodified AppImage is extracted; a wrapper sets its
   bundled library/plugin paths. Its binary version and SHA are recorded at build
   and test time. Retain upstream corresponding source for that exact version
-  when redistributing. The inherited unrelated emulator AppImages remain base
+  when redistributing. The reviewed base bundles **PCSX2 2.8.2**; corresponding
+  source: https://github.com/PCSX2/pcsx2/tree/v2.8.2 (including its submodules).
+  The inherited unrelated emulator AppImages remain base
   content, not supported launchers in this focused project.
 - Dolphin: https://dolphin-emu.org and https://src.fedoraproject.org/rpms/dolphin-emu,
   GPL-2.0-or-later; use the signed Fedora native package, not a host binary.

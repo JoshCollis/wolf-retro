@@ -38,7 +38,7 @@ RUN bash /usr/local/libexec/wolf-retro/check-support && \
       mesa-dri-drivers mesa-vulkan-drivers vulkan-loader SDL3 sdl2-compat qt6-qtbase && \
     dnf install -y --setopt=install_weak_deps=False \
       dolphin-emu retroarch retroarch-assets libretro-mgba zenity python3 \
-      xorg-x11-server-Xvfb xorg-x11-xauth xprop xwininfo xdotool \
+      xorg-x11-server-Xvfb xorg-x11-xauth xprop xwininfo xdotool xset \
       sdl2-compat mesa-dri-drivers mesa-vulkan-drivers vulkan-loader \
       libxcb xcb-util-cursor libxkbcommon-x11 qt6-qtwayland \
       grim wtype procps-ng file binutils && dnf clean all
@@ -68,11 +68,14 @@ RUN curl -fSL --retry 3 --connect-timeout 30 --max-time 180 \
 COPY --from=core-builder /assets/ /
 COPY overlay/ /
 COPY LICENSE NOTICE.md /usr/share/doc/wolf-retro/
+# Clean only the inherited image-build wget scaffold, never a mounted HOME.
 RUN ln -s /usr/lib64/libretro/mgba_libretro.so /opt/retro-library/cores/mgba_libretro.so && \
     chmod 0755 /usr/local/bin/{retro-launch,library-help,dolphin-input} \
       /opt/emulators/dolphin/squashfs-root/AppRun \
       /opt/emulators/pcsx2/squashfs-root/AppRun \
       /etc/cont-init.d/{10-setup_user.sh,setup-de.sh} /opt/gow/startup-app.sh && \
+    rm -f /home/retro/.local/share/wget/.wget-hsts && \
+    rmdir /home/retro/.local/share/wget /home/retro/.local/share /home/retro/.local && \
     rm -f /etc/cont-init.d/init-gamescope.sh && \
     rpm -qa --qf '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\t%{LICENSE}\n' | sort > /usr/share/wolf-retro/packages.tsv && \
     rpm -q retroarch retroarch-assets dolphin-emu libretro-mgba > /usr/share/wolf-retro/emulator-packages.txt && \
